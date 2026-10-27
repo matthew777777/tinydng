@@ -96,3 +96,13 @@ add_test(NAME v3_streamwrite COMMAND test_v3_streamwrite "${CMAKE_SOURCE_DIR}")
 add_test(NAME lj92 COMMAND test_lj92)
 
 add_test(NAME v3_writer_metadata COMMAND test_v3_writer_metadata)
+
+include(${CMAKE_SOURCE_DIR}/cmake/TinyDNGJXL.cmake)
+tinydng_configure_jxl(tinydng)
+add_executable(test_v3_jxl tests/v3_test/test_v3_jxl.c)
+target_link_libraries(test_v3_jxl PRIVATE tinydng)
+if(TINYDNG_ENABLE_JXL)
+  target_compile_definitions(test_v3_jxl PRIVATE TINYDNG_TEST_JXL)
+endif()
+add_test(NAME v3_jxl COMMAND test_v3_jxl)
+add_sanitizers(test_v3_jxl)

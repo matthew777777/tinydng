@@ -71,20 +71,47 @@ patching at finish. Both modes flush the built-in file sink on success.
 
 ## JPEG XL / DNG 1.7
 
-Set `compression = TINYDNG_COMPRESSION_JPEG_XL` (52546) and `precompressed = 1`
-for caller-encoded JPEG XL codestreams containing 16-bit single-channel data.
-Call `tinydng_writer_write_compressed_strip` once per strip, or pass the single
-codestream as `image.data/data_size` to `tinydng_write_memory/write_file`.
-Codestream bytes are preserved without endian conversion or raster-size checks.
-The writer adds missing DNGVersion and DNGBackwardVersion tags with 1.7.0.0;
-explicit versions below 1.7 are rejected. Tiled and header-first JXL modes are
-rejected. A non-empty payload is required; codestream validity is caller-owned.
+Enable the optional encoder with an installed libjxl (0.8 or newer):
 
-As in RawLens, JPEG XL encoding belongs to the caller (for example libjxl).
-TinyDNG does not bundle a JPEG XL encoder or decoder. Its native writer codecs
-remain uncompressed, LZW, PackBits and lossless JPEG (including the existing
-arithmetic/restart options). This is metadata serialization and JXL copy-through
-support, not a claim that every DNG 1.7 feature is interpreted or rendered.
+```sh
+cmake -S . -B build -DTINYDNG_ENABLE_JXL=ON
+cmake --build build -j4
+```
+
+CMake discovers libjxl and libjxl_threads through pkg-config, or reuses existing
+`jxl`/`jxl_threads` targets in a parent build. For a custom install, set
+`CMAKE_PREFIX_PATH` or `PKG_CONFIG_PATH`. Manual builds define `TINYDNG_HAVE_JXL`
+and link those two libraries. No network download is performed. The default
+build has no libjxl dependency; `tinydng_has_jxl_encoder()` reports availability.
+
+Pass host-order RAW16 pixels through the ordinary writer API:
+
+```c
+tinydng_write_options options = {0};
+options.compression = TINYDNG_COMPRESSION_JPEG_XL;
+/* image describes unsigned 16-bit, single-channel pixels, as usual. */
+tinydng_write_file(ctx, "output.dng", &image, &options, &error);
+```
+
+TinyDNG encodes losslessly, emits Compression 52546, and adds missing DNGVersion
+and DNGBackwardVersion tags with 1.7.0.0. Explicit versions below 1.7 are rejected.
+`jxl_effort` defaults to 3 (or set 1..9); `jxl_num_threads` defaults to automatic
+(or set 1 for serial encoding). Both single-strip wrappers and streaming
+`tinydng_writer_write_strip` accept pixels directly. Each strip becomes one JXL
+codestream, including the final partial strip. Compressed bytes drain through a
+reusable 64 KiB staging buffer directly to the output sink. libjxl still owns
+its frame and parallel-runner allocations, which are outside TinyDNG's tracked
+memory cap. JXL decoding is not included in TinyDNG.
+
+Existing callers can still set `precompressed = 1` and call
+`tinydng_writer_write_compressed_strip`, or pass a single codestream in
+`image.data/data_size` to the one-shot wrappers. This copy-through path works
+without libjxl, preserves bytes verbatim, and leaves codestream validation to
+the caller. Tiled and header-first JXL output remain unsupported. Without an
+encoder, pixel input returns `TINYDNG_E_UNSUPPORTED` at writer creation.
+
+Camera2 metadata conversion remains in the capture application. Generic metadata
+serialization and JXL encoding do not imply interpretation of every DNG 1.7 tag.
 
 ## Verification
 
@@ -92,3 +119,8 @@ support, not a claim that every DNG 1.7 feature is interpreted or rendered.
 GainMap/NoiseProfile parsing, EXIF/GPS offset resolution, exact pixel round trips,
 sequential sink ordering, JXL codestream preservation/version tags, malformed
 metadata cleanup and allocation-failure sweeps in both writer modes.
+
+`test_v3_jxl` decodes produced codestreams independently through libjxl and
+checks exact RAW16 samples, both TIFF byte orders, automatic DNG 1.7 tags,
+multiple strips in reverse write order, partial final strips, threaded/serial
+encoding, and behavior in a build without libjxl.

@@ -1,0 +1,15 @@
+# Reusable by the root build and the standalone v3 tests. No downloads.
+option(TINYDNG_ENABLE_JXL "Encode JPEG XL through an installed libjxl" OFF)
+function(tinydng_configure_jxl target)
+  if(TINYDNG_ENABLE_JXL)
+    if(TARGET jxl AND TARGET jxl_threads)
+      target_link_libraries(${target} PUBLIC jxl jxl_threads)
+    else()
+      find_package(PkgConfig REQUIRED)
+      pkg_check_modules(TINYDNG_JXL REQUIRED IMPORTED_TARGET
+                        libjxl>=0.8 libjxl_threads>=0.8)
+      target_link_libraries(${target} PUBLIC PkgConfig::TINYDNG_JXL)
+    endif()
+    target_compile_definitions(${target} PRIVATE TINYDNG_HAVE_JXL)
+  endif()
+endfunction()
