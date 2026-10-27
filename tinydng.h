@@ -150,7 +150,11 @@ typedef enum tinydng_compression {
   TINYDNG_COMPRESSION_NEW_JPEG = 7,
   TINYDNG_COMPRESSION_ZIP = 8,
   TINYDNG_COMPRESSION_PACKBITS = 32773,
-  TINYDNG_COMPRESSION_LOSSY_JPEG = 34892
+  TINYDNG_COMPRESSION_LOSSY_JPEG = 34892,
+  /* JPEG XL (DNG 1.7, Compression 52546). Copy-through only: the
+     caller compresses (e.g. libjxl) and hands already-compressed bytes to
+     tinydng_writer_write_compressed_strip. No encoder lives here. */
+  TINYDNG_COMPRESSION_JPEG_XL = 52546
 } tinydng_compression;
 
 typedef enum tinydng_sample_format {
@@ -677,7 +681,7 @@ tinydng_status tinydng_psd_write_file(tinydng_context *ctx, const char *path,
                                       tinydng_error *err);
 
 /* ------------------------------------------------------------------ */
-/* Writer (uncompressed TIFF / DNG, single image)                     */
+/* Writer (TIFF / DNG, single image)                     */
 /* ------------------------------------------------------------------ */
 
 typedef struct tinydng_write_options {
@@ -687,7 +691,18 @@ typedef struct tinydng_write_options {
   uint8_t ljpeg_arithmetic; /* compression=7: SOF11 instead of SOF3   */
   uint8_t ljpeg_predictor;  /* 0 => 1; otherwise Annex H selector 1..7 */
   uint16_t ljpeg_restart_interval_mcus; /* 0 => none; whole MCU rows   */
-  uint16_t compression; /* 0/1 none, 5 LZW, 7 lossless JPEG, 32773 PackBits */
+  uint16_t compression; /* 0/1 none, 5 LZW, 7 lossless JPEG, 32773 PackBits,
+                           52546 precompressed JPEG XL */
+  /* header-first streaming for uncompressed output to non-seekable
+     sinks. The header, IFD and extras are emitted at create (offsets
+     precomputed — valid only for uncompressed striped layouts), and strips
+     must arrive in index order. Classic TIFF only. */
+  uint8_t header_first;
+  /* the image data arrives already compressed (JPEG XL codestream).
+     writer_create requires compression == 52546 with 16-bit single-channel
+     input; tinydng_write_memory skips the raster-size check and stores the
+     bytes verbatim via tinydng_writer_write_compressed_strip. */
+  uint8_t precompressed;
 } tinydng_write_options;
 
 typedef struct tinydng_write_image {
@@ -700,6 +715,17 @@ typedef struct tinydng_write_image {
   size_t data_size;
   const tinydng_cfa *cfa;      /* optional */
   const tinydng_raw_info *raw; /* optional DNG metadata */
+  /* additional tags, serialized in opts->big_endian byte order.
+     Must not duplicate generated tags. Payloads are copied at writer_create. */
+  const tinydng_field *fields;
+  size_t field_count;
+  /* nested EXIF (34665) / GPS (34853) sub-IFD contents. Each list is
+     assembled into its own sorted sub-IFD; empty count omits the sub-IFD.
+     Same payload rules as `fields`. Not supported with bigtiff. */
+  const tinydng_field *exif_fields;
+  size_t exif_field_count;
+  const tinydng_field *gps_fields;
+  size_t gps_field_count;
 } tinydng_write_image;
 
 /* Serialize `img` to an in-memory TIFF/DNG buffer (allocated via ctx;
@@ -794,6 +820,17 @@ tinydng_status tinydng_writer_write_strip(tinydng_writer *w,
                                           uint32_t strip_index,
                                           const void *pixels,
                                           tinydng_error *err);
+
+/* write one already-compressed strip (JPEG XL codestream bytes).
+   Requires a writer created with compression == 52546 + precompressed, a
+   non-header-first sink, and strip_index 0..seg_count-1 (one-shot writes use
+   strip 0 with len == img->data_size). Bytes are stored verbatim; no
+   byte-swap, no re-encode. */
+tinydng_status tinydng_writer_write_compressed_strip(tinydng_writer *w,
+                                                     uint32_t strip_index,
+                                                     const void *data,
+                                                     size_t len,
+                                                     tinydng_error *err);
 
 /* Write the IFD + extras, patch the header, and release the writer.
    The handle is invalid after this call. */

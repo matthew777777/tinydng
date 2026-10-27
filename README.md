@@ -305,3 +305,7 @@ TinyDNG uses the following third party libraries.
 * liblj92(Lossless JPEG library) : (c) Andrew Baldwin 2014. MIT license.  https://bitbucket.org/baldand/mlrawviewer.git
 * stb_image : Public domain image loader.
 * miniz : Copyright 2013-2014 RAD Game Tools and Valve Software. Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC MIT license. See `miniz.LICENSE`
+
+DNG writer extensions (lens shading/opcode lists, complete TIFF metadata fields,
+EXIF/GPS directories, sequential streaming and DNG 1.7 JPEG XL copy-through)
+are documented in [writer metadata](docs/writer-metadata.md).

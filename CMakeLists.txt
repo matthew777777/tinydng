@@ -78,7 +78,7 @@ add_sanitizers(test_dng_v3)
 enable_testing()
 
 set(TINYDNG_V3_TESTS test_v3_roundtrip test_v3_decode test_v3_metadata
-                     test_v3_security test_v3_mt test_v3_psd test_v3_streamwrite
+                     test_v3_security test_v3_mt test_v3_psd test_v3_streamwrite test_v3_writer_metadata
                      test_lj92)
 foreach(t ${TINYDNG_V3_TESTS})
   add_executable(${t} tests/v3_test/${t}.c)
@@ -94,3 +94,5 @@ add_test(NAME v3_mt COMMAND test_v3_mt "${CMAKE_SOURCE_DIR}")
 add_test(NAME v3_psd COMMAND test_v3_psd)
 add_test(NAME v3_streamwrite COMMAND test_v3_streamwrite "${CMAKE_SOURCE_DIR}")
 add_test(NAME lj92 COMMAND test_lj92)
+
+add_test(NAME v3_writer_metadata COMMAND test_v3_writer_metadata)

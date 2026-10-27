@@ -1,3 +1,4 @@
 tests/v3_test/data/psd-corpus/
 web/build/
 web/js/dist/
+/build/
