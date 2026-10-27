@@ -5,7 +5,7 @@
 ```bash
 cd build && cmake .. && make -j4
 ./test_dng_v3 <file.dng>           # V3 loader (pure C11, all features)
-ctest                              # All v3 tests (8 tests)
+ctest                              # All v3 tests (10 tests)
 ```
 
 ## Key Files
@@ -16,7 +16,7 @@ ctest                              # All v3 tests (8 tests)
 - `tinydng_tiff.c` - TIFF/IFD parser
 - `tinydng_dng.c` - DNG metadata tag handler
 - `tinydng_codec.c` - Block decoder dispatch (LJPEG, ZIP, LZW, PackBits, baseline JPEG)
-- `tinydng_write.c` - TIFF/DNG writer (single-strip + streaming tiled)
+- `tinydng_write.c` - TIFF/DNG writer (strips/tiles, metadata/EXIF/GPS, optional libjxl encoder)
 - `tinydng_psd.c` - PSD/PSB reader
 - `tinydng_psd_write.c` - PSD/PSB writer
 - `tinydng_miniz.c` - Vendored miniz (ZIP/Deflate)
@@ -75,6 +75,14 @@ SubIFDs are only processed when `TINYDNG_OPEN_PARSE_SUBIFDS` flag is set. Withou
 ### v3 Streaming / Tiled Writer
 - `tinydng_write_io` (absolute-offset write/size/close; file + memory backends). `tinydng_writer_finish` flushes the built-in file backend internally on success so a final stdio-buffer failure reports E_IO instead of silent truncation.
 - `tinydng_writer_create/write_tile/write_strip/finish`: tiled or multi-strip; none/LZW/PackBits/lossless-JPEG compression. Edge tiles padded to full tile dims.
+- `fields/field_count` carry checked serialized TIFF/DNG tags (64 total IFD entries, 256 KiB extras); duplicates of generated tags fail. OpcodeList1/2/3 bytes remain big-endian regardless of TIFF byte order.
+- `exif_fields/gps_fields` create sorted, deep-copied classic TIFF subdirectories (up to 128 fields each); BigTIFF subdirectories are rejected.
+- `header_first=1` emits the full header at create for sequential sinks; only uncompressed classic TIFF strips, written in ascending order.
+- `TINYDNG_ENABLE_JXL=ON` discovers installed libjxl/libjxl_threads >=0.8 or existing CMake targets; manual builds define `TINYDNG_HAVE_JXL`. The default build has no libjxl dependency.
+- Compression 52546 accepts unsigned RAW16, one channel, with `precompressed=0` for native lossless JXL. Defaults: effort 3, automatic threads; 1 thread selects serial. Missing version tags become DNG 1.7; explicit older versions fail. No tiled/header-first JXL or JXL decode.
+- Precompressed JXL strip copy-through remains available without libjxl. Check `tinydng_has_jxl_encoder()` before selecting pixel encoding.
+- Native JXL drains through cached 64 KiB output staging. libjxl owns frame/runner allocations outside the tracked context cap; one-shot wrappers still buffer the final TIFF.
+- `test_v3_writer_metadata` covers metadata, directory cleanup and sequential sinks; `test_v3_jxl` independently decodes native JXL output when enabled. See `docs/writer-metadata.md`.
 - Lossless JPEG writer constraints (dims <= 65535, spp 1..4) are validated at create time (E_UNSUPPORTED).
 - `tinydng_write_memory/write_file` are thin wrappers (single strip + memory/file sink)
 - The byte-swap scratch (`scratch_swap`) and compressed-output staging (`scratch_enc`) are cached in the writer and grown on demand — do not reintroduce per-tile alloc/free.

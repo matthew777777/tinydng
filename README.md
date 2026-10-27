@@ -4,7 +4,9 @@ Pure C11 DNG/TIFF/PSD loader and writer. Single public header (`tinydng.h`).
 
 TinyDNG supports lossless RAW DNG, lossless JPEG, ZIP/Deflate, LZW, PackBits
 compression, tiled and multi-strip layouts, multi-threaded decode, PSD/PSB
-composite and layer decode, and streaming write to file or memory.
+composite and layer decode, and streaming write to file or memory. The writer
+also supports DNG metadata and EXIF/GPS directories, lens-shading/opcode lists,
+and optional lossless JPEG XL encoding for DNG 1.7.
 
 TinyDNG can also be used as a TIFF RGB image loader (8, 16 and 32 bit).
 
@@ -48,9 +50,14 @@ TinyDNG can also be used as a TIFF RGB image loader (8, 16 and 32 bit).
 ### Writing
 
 * [x] DNG and TIFF
-  * [x] Single-strip or tiled output
+  * [x] Single-strip, multi-strip or tiled output
   * [x] Lossless JPEG, LZW, PackBits compression
   * [x] Streaming writer (writes tile/strip payloads incrementally)
+  * [x] Header-first uncompressed strips for non-seekable sinks
+  * [x] Checked TIFF/DNG fields, EXIF/GPS directories and NoiseProfile
+  * [x] All three opcode lists, including lens-shading GainMaps
+  * [x] DNG 1.7 lossless JPEG XL from RAW16 pixels (optional libjxl)
+  * [x] Precompressed JPEG XL strip copy-through without libjxl
 * [x] PSD / PSB
   * [x] Composite image + layers
   * [x] RAW or RLE(PackBits) output
@@ -79,7 +86,21 @@ make -j$(nproc)
 ```
 
 This builds the `tinydng` static library and test executables. No external
-dependencies beyond a C11 compiler and pthreads (optional).
+dependencies beyond a C11 compiler and pthreads (optional) in the default build.
+
+To enable direct JPEG XL encoding, install libjxl and libjxl_threads (0.8 or newer)
+and pkg-config, then configure with:
+
+```bash
+cmake -S . -B build -DTINYDNG_ENABLE_JXL=ON
+cmake --build build -j4
+```
+
+Use `CMAKE_PREFIX_PATH` or `PKG_CONFIG_PATH` for a custom installation. Parent
+builds can provide existing `jxl` and `jxl_threads` targets. No dependency is
+downloaded by TinyDNG. `tinydng_has_jxl_encoder()` reports encoder availability;
+JPEG XL pixel input returns `TINYDNG_E_UNSUPPORTED` when it is disabled.
+JPEG XL decoding is not included.
 
 ### Compile-time options
 
@@ -91,6 +112,7 @@ Define these to customize the build:
 | `TINYDNG_NO_BASELINE_JPEG` | Compile out baseline/progressive JPEG support |
 | `TINYDNG_NO_PSD` | Compile out PSD/PSB support |
 | `TINYDNG_DISABLE_THREADS` | Build without multi-threaded decode |
+| `TINYDNG_HAVE_JXL` | Enable pixel encoding in manual builds; link libjxl and libjxl_threads |
 
 ## Usage
 
@@ -207,6 +229,38 @@ int main(void) {
 }
 ```
 
+### Writing JPEG XL DNG and metadata
+
+With the optional encoder enabled, pass unsigned 16-bit, single-channel pixels
+through the normal writer API. TinyDNG handles compression and missing DNG 1.7
+version tags:
+
+```c
+tinydng_write_options options = {0};
+options.compression = TINYDNG_COMPRESSION_JPEG_XL;
+options.jxl_effort = 3;       /* 0 also selects 3; explicit values 1..9 */
+options.jxl_num_threads = 0;  /* automatic; 1 selects serial encoding */
+/* image.data contains host-order RAW16 pixels and data_size is raster bytes. */
+tinydng_status status = tinydng_write_file(ctx, "output.dng", &image, &options, &err);
+```
+
+JPEG XL supports ordinary single/multi-strip output. It currently requires
+unsigned 16-bit single-channel input and cannot use tiles or `header_first`.
+Compressed output drains to the sink through reusable 64 KiB staging; libjxl's
+internal frame/runner memory is outside the context memory cap. The one-shot
+memory/file wrappers still materialize the final TIFF buffer.
+
+Use `image.fields` for serialized TIFF/DNG fields, including fractional black
+levels, crops, all calibration matrices, DOUBLE NoiseProfile and OpcodeList1/2/3.
+Set `exif_fields` and `gps_fields` for sorted nested directories (classic TIFF).
+Payloads use the selected TIFF byte order; opcode bytes always use big-endian.
+The writer copies payloads at create and rejects malformed or duplicate fields,
+including duplicates of generated tags. Generic opcode transport preserves
+unknown opcodes without interpreting their parameters.
+
+See [writer metadata](docs/writer-metadata.md) for complete field rules, limits,
+sequential output, precompressed copy-through and RawLens integration.
+
 ### Writing PSD/PSB
 
 ```c
@@ -251,6 +305,8 @@ cd build && cmake .. && make -j$(nproc)
 ctest
 ```
 
+CTest registers 10 tests in both default and libjxl-enabled builds.
+
 Test executables:
 
 | Target | Description |
@@ -263,6 +319,9 @@ Test executables:
 | `test_v3_mt` | Multi-threaded decode determinism |
 | `test_v3_psd` | PSD/PSB writer-reader round trips |
 | `test_v3_streamwrite` | Streaming tiled writer |
+| `test_v3_writer_metadata` | TIFF fields, EXIF/GPS, opcode lists, sequential output and allocation failures |
+| `test_v3_jxl` | Direct lossless JXL round trips when enabled; unsupported-encoder behavior otherwise |
+| `test_lj92` | Lossless JPEG codec regression tests |
 
 ## Fuzzing
 
@@ -306,6 +365,4 @@ TinyDNG uses the following third party libraries.
 * stb_image : Public domain image loader.
 * miniz : Copyright 2013-2014 RAD Game Tools and Valve Software. Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC MIT license. See `miniz.LICENSE`
 
-DNG writer extensions (lens shading/opcode lists, complete TIFF metadata fields,
-EXIF/GPS directories, sequential streaming and DNG 1.7 lossless JPEG XL encoding)
-are documented in [writer metadata](docs/writer-metadata.md).
+* libjxl (optional JPEG XL encoder): BSD-3-Clause; supplied by the build, not vendored. https://github.com/libjxl/libjxl

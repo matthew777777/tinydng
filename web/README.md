@@ -3,7 +3,9 @@
 This directory contains a decode-only WebAssembly build of the v3 C API and a
 small browser demo for DNG/TIFF files. The browser build includes TIFF/DNG
 parsing, baseline JPEG, lossless JPEG, LZW, PackBits and ZIP decoding. It does
-not include the writer, PSD support or worker threads.
+not include the writer, PSD support or worker threads. Native optional JPEG XL
+encoding does not change this decode-only build; JPEG XL decoding is not
+available. See [native writer metadata and compression](../docs/writer-metadata.md).
 
 ## Build
 

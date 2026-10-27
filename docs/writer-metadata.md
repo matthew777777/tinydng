@@ -98,7 +98,8 @@ and DNGBackwardVersion tags with 1.7.0.0. Explicit versions below 1.7 are reject
 `jxl_effort` defaults to 3 (or set 1..9); `jxl_num_threads` defaults to automatic
 (or set 1 for serial encoding). Both single-strip wrappers and streaming
 `tinydng_writer_write_strip` accept pixels directly. Each strip becomes one JXL
-codestream, including the final partial strip. Compressed bytes drain through a
+codestream (with a container when libjxl requires it), including the final
+partial strip. Compressed bytes drain through a
 reusable 64 KiB staging buffer directly to the output sink. libjxl still owns
 its frame and parallel-runner allocations, which are outside TinyDNG's tracked
 memory cap. JXL decoding is not included in TinyDNG.
@@ -114,6 +115,23 @@ Camera2 metadata conversion remains in the capture application. Generic metadata
 serialization and JXL encoding do not imply interpretation of every DNG 1.7 tag.
 
 ## Verification
+
+Both the root build and the standalone `tests/v3_test` build register 10 tests.
+To verify the encoder with sanitizers (installed libjxl required):
+
+```sh
+cmake -S tests/v3_test -B /tmp/tinydng-jxl-tests \
+  -DTINYDNG_ENABLE_JXL=ON -DTINYDNG_TEST_SANITIZE=ON
+cmake --build /tmp/tinydng-jxl-tests -j4
+ctest --test-dir /tmp/tinydng-jxl-tests --output-on-failure
+```
+
+The 2026-10-27 integration passed all 10 tests in default and encoder-enabled
+builds, and all 10 with ASan/UBSan in the encoder-enabled build. RawLens passed
+58 selected JVM tests, including the native JXL/GPS test without skips, its host
+GainMap verifier, and an Android arm64 DNG library build. All 13 vendored base
+files matched TinyDNG byte-for-byte after the source sync. These checks do not
+replace fresh device captures and external RAW rendering.
 
 `test_v3_writer_metadata` checks both TIFF byte orders, all three opcode lists,
 GainMap/NoiseProfile parsing, EXIF/GPS offset resolution, exact pixel round trips,

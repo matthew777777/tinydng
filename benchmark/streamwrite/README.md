@@ -28,3 +28,8 @@ Reference results (AMD Ryzen Threadripper 1950X, gcc -O2):
 The streaming encoder tracks the one-shot path within noise (the 4KB staged
 sink adds no measurable overhead); the writer adds per-tile IFD/segment
 bookkeeping on top.
+
+This benchmark measures tiled lossless JPEG, not the optional JPEG XL encoder.
+For direct RAW16-to-JXL strips, EXIF/GPS and header-first output rules, see
+[writer metadata](../../docs/writer-metadata.md). JXL output currently uses strips;
+its encoder has separate staging and libjxl-owned frame/runner memory.

@@ -61,6 +61,11 @@ the thumbnail, and depth-capped smart-object open/decode. `fuzz-v3-psd-write`
 writes a doc derived from the input, reopens it, and asserts the decoded
 composite and layer bytes match what was written.
 
-## TODO
+## DNG writer coverage
 
-* [ ] Fuzzer for DNG writer.
+`make v3-write v3-streamwrite` builds the one-shot and streaming TIFF/DNG writer
+harnesses. Their default Makefile build does not enable optional libjxl encoding.
+Focused metadata, EXIF/GPS, opcode, sequential-sink and allocation-failure
+regressions are in `test_v3_writer_metadata`; direct JXL sample round trips are
+in `test_v3_jxl` when CMake is configured with `TINYDNG_ENABLE_JXL=ON`.
+See [writer metadata](../docs/writer-metadata.md) for build and sanitizer commands.
