@@ -56,7 +56,7 @@ TinyDNG can also be used as a TIFF RGB image loader (8, 16 and 32 bit).
   * [x] Header-first uncompressed strips for non-seekable sinks
   * [x] Checked TIFF/DNG fields, EXIF/GPS directories and NoiseProfile
   * [x] All three opcode lists, including lens-shading GainMaps
-  * [x] DNG 1.7 lossless JPEG XL from RAW16 pixels (optional libjxl)
+  * [x] DNG 1.7 lossless JPEG XL from unsigned 16-bit samples (optional libjxl)
   * [x] Precompressed JPEG XL strip copy-through without libjxl
 * [x] PSD / PSB
   * [x] Composite image + layers
@@ -240,7 +240,7 @@ tinydng_write_options options = {0};
 options.compression = TINYDNG_COMPRESSION_JPEG_XL;
 options.jxl_effort = 3;       /* 0 also selects 3; explicit values 1..9 */
 options.jxl_num_threads = 0;  /* automatic; 1 selects serial encoding */
-/* image.data contains host-order RAW16 pixels and data_size is raster bytes. */
+/* image.data contains host-order unsigned 16-bit, single-channel pixels and data_size is raster bytes. */
 tinydng_status status = tinydng_write_file(ctx, "output.dng", &image, &options, &err);
 ```
 
@@ -259,7 +259,7 @@ including duplicates of generated tags. Generic opcode transport preserves
 unknown opcodes without interpreting their parameters.
 
 See [writer metadata](docs/writer-metadata.md) for complete field rules, limits,
-sequential output, precompressed copy-through and RawLens integration.
+sequential output and precompressed copy-through.
 
 ### Writing PSD/PSB
 

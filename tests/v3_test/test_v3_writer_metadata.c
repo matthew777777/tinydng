@@ -1,4 +1,4 @@
-/* Writer extensions imported from RawLens: verify TIFF bytes independently. */
+/* Verify writer metadata and directory layout using independent TIFF reads. */
 #include "td_test_util.h"
 
 static uint16_t u16(const uint8_t *p, int be) {

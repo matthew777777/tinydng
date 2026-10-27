@@ -1,10 +1,10 @@
-# DNG writer metadata and RawLens integration
+# TIFF/DNG writer metadata and compression
 
-The writer supports the metadata transport used by RawLens's single-frame,
-HDR+, linear RGB and float-CFA exporters. The extensions originated in RawLens's
-vendored patch against TinyDNG `1f18169` and are now part of the public C11 API.
-Camera2 metadata extraction, CFA coordinate transforms and lens-shading channel
-selection remain the capture application's responsibility.
+The writer serializes caller-provided pixels and metadata into TIFF/DNG files.
+Its public C11 API supports typed TIFF fields, EXIF/GPS directories, opaque DNG
+opcode lists, strip/tile layouts and optional lossless JPEG XL encoding.
+Metadata acquisition, coordinate transformations and image processing belong
+to the caller; the writer does not depend on a capture API or application.
 
 ## TIFF/DNG fields
 
@@ -84,7 +84,7 @@ CMake discovers libjxl and libjxl_threads through pkg-config, or reuses existing
 and link those two libraries. No network download is performed. The default
 build has no libjxl dependency; `tinydng_has_jxl_encoder()` reports availability.
 
-Pass host-order RAW16 pixels through the ordinary writer API:
+Pass host-order unsigned 16-bit, single-channel pixels through the ordinary writer API:
 
 ```c
 tinydng_write_options options = {0};
@@ -111,8 +111,8 @@ without libjxl, preserves bytes verbatim, and leaves codestream validation to
 the caller. Tiled and header-first JXL output remain unsupported. Without an
 encoder, pixel input returns `TINYDNG_E_UNSUPPORTED` at writer creation.
 
-Camera2 metadata conversion remains in the capture application. Generic metadata
-serialization and JXL encoding do not imply interpretation of every DNG 1.7 tag.
+Generic metadata serialization and JXL encoding do not imply interpretation
+of every DNG 1.7 tag.
 
 ## Verification
 
@@ -126,19 +126,12 @@ cmake --build /tmp/tinydng-jxl-tests -j4
 ctest --test-dir /tmp/tinydng-jxl-tests --output-on-failure
 ```
 
-The 2026-10-27 integration passed all 10 tests in default and encoder-enabled
-builds, and all 10 with ASan/UBSan in the encoder-enabled build. RawLens passed
-58 selected JVM tests, including the native JXL/GPS test without skips, its host
-GainMap verifier, and an Android arm64 DNG library build. All 13 vendored base
-files matched TinyDNG byte-for-byte after the source sync. These checks do not
-replace fresh device captures and external RAW rendering.
-
 `test_v3_writer_metadata` checks both TIFF byte orders, all three opcode lists,
 GainMap/NoiseProfile parsing, EXIF/GPS offset resolution, exact pixel round trips,
 sequential sink ordering, JXL codestream preservation/version tags, malformed
 metadata cleanup and allocation-failure sweeps in both writer modes.
 
 `test_v3_jxl` decodes produced codestreams independently through libjxl and
-checks exact RAW16 samples, both TIFF byte orders, automatic DNG 1.7 tags,
+checks exact unsigned 16-bit samples, both TIFF byte orders, automatic DNG 1.7 tags,
 multiple strips in reverse write order, partial final strips, threaded/serial
 encoding, and behavior in a build without libjxl.
